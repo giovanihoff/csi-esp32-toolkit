@@ -1,0 +1,10 @@
+2025-04-13 20:54:18,861 - 🔍 Waiting for ESP32 IP...
+2025-04-13 20:54:22,797 - 📡 IP detected: 192.168.0.104
+2025-04-13 20:54:22,815 - 🚀 CSI_DATA detected. Starting capture...
+2025-04-13 20:54:22,816 - 🔁 Ping started in parallel to 192.168.0.104
+2025-04-13 20:54:38,833 - 📉 Packet loss rate: 0.00%
+2025-04-13 20:54:38,834 - 📡 Average RSSI: -51.89 dBm
+2025-04-13 20:54:38,834 - 🧩 CSI fields per sample (excluding timestamp): 128
+2025-04-13 20:54:38,861 - ✅ Capture finished in 16.05 segundos.
+2025-04-13 20:54:38,861 - 📊 Total captured samples: 999
+2025-04-13 20:54:38,861 - 📁 Data saved to 'data/csi_data.csv'.
