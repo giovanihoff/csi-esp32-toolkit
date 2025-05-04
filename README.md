@@ -1,101 +1,102 @@
-
 # CSI ESP32 Tool Kit
 
-Este projeto é um conjunto de ferramentas para autenticação de usuários com base nos dados de Channel State Information (CSI) utilizando um dispositivo **ESP32**.
+This project is a set of tools for user authentication based on Channel State Information (CSI) data using an **ESP32** device.
 
-## Descrição
+## Description
 
-O projeto permite a captura, processamento, extração de características, visualização e autenticação utilizando sinais CSI. Foi desenvolvido com base no repositório [sbrc2024-csi](https://github.com/c2dc/sbrc2024-csi) e adaptado para uso com o ESP32, utilizando a infraestrutura dos projetos oficiais da Espressif:
-
-- [ESP-IDF](https://github.com/espressif/esp-idf)
-- [ESP-CSI](https://github.com/espressif/esp-csi)
+The project enables the capture, processing, labeling, model training, and authentication of users based on CSI signals. It was developed from the repository [sbrc2024-csi](https://github.com/c2dc/sbrc2024-csi), adapted for use with ESP32 authentication.
 
 ---
 
-### 🧠 **Como Funciona**
+### 🧠 **How It Works**
 
-Abaixo está um diagrama representando a ideia central do projeto, onde o ESP32 se comunica com o roteador Wi-Fi e os sinais CSI são capturados enquanto um usuário está presente entre eles.
+The ESP32 collects CSI data while network traffic (e.g., ping) occurs and a user is either present or not in the environment. These data are processed, labeled, and used to train machine learning authentication models.
 
 <p align="center">
-  <img src="docs/csi_esp32_diagram.png" width="70%" alt="Funcionamento do CSI com ESP32">
+  <img src="docs/csi_esp32_diagram.png" width="70%" alt="How CSI works with ESP32">
 </p>
 
 ---
 
-## Requisitos
+## Requirements
 
 - Python 3.10+
-- Dependências listadas em `requirements.txt`
-- Ambiente ESP-IDF configurado
-- Firmware CSI rodando no ESP32 (via ESP-CSI)
-- Projeto clone em `esp-csi/examples/get-started/csi_recv_router`
+- Dependencies listed in `requirements.txt`
+- ESP-IDF environment configured
+- CSI firmware running on ESP32 (via ESP-CSI)
 
 ---
 
-## Estrutura do Projeto
+## File Structure
 
-- `csi_capture.py`: Captura os dados CSI do ESP32 via porta serial.
-- `csi_processing.py`: Aplica filtros (Hampel, passa-baixa) e extrai estatísticas dos sinais CSI.
-- `csi_train_models.py`: Treina classificadores (Random Forest, SVM, KNN, Isolation Forest) para autenticação.
-- `csi_auth.py`: Autentica uma nova captura usando os modelos treinados.
-- `csi_plot.py`: Geração de gráficos de análise (PCA, variância, correlação, biplot).
-- `csi_labeling.py`: Adiciona rótulos e organiza as coletas CSI.
+- `capture_csi.py`: Captures CSI data from ESP32 via UART serial port and saves it as CSV.
+- `process_csi.py`: Processes raw CSV, applying normalization and low-pass filters to amplitude and phase signals.
+- `label_csi.py`: Labels the captures with user name, environment, and position; also manages the dataset (add/remove/reset).
+- `train_csi.py`: Trains machine learning models (Random Forest, SVM, MLP, Logistic Regression) for multiclass, binary (human presence), and specific (user vs empty environment) authentication.
+- `auth_csi.py`: Authenticates a new processed capture using all available models and criteria such as centroid distance.
 
 ---
 
-## Como Usar
+## How to Use
 
-### 1. Instale as dependências
+### 1. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Capture dados CSI
+### 2. Capture CSI data
 
 ```bash
-python csi_capture.py --duration 60 --output data/csi_data.csv
+python capture_csi.py -p /dev/ttyUSB0 -t 60 -o data/data_csi.csv
 ```
 
-### 3. Processe os dados
+### 3. Process the captured data
 
 ```bash
-python csi_processing.py --input data/csi_data.csv
+python process_csi.py -i data/data_csi.csv -o data/processed_csi.csv
 ```
 
-### 4. Classifique os dados
+### 4. Add the capture to the labeled dataset
 
 ```bash
-python csi_labeling.py --label giovani --environment env1 --position standing
+python label_csi.py add -i data/processed_csi.csv -u giovani -e room -p standing -o dataset/dataset.csv
 ```
 
-### 5. Treine os modelos (após criar um dataset)
+### 5. (Optional) Remove or reset the dataset
 
 ```bash
-python csi_train_models.py
+python label_csi.py remove -u giovani -e room -p standing
+python label_csi.py reset
 ```
 
-### 6. Valide uma captura em tempo real
+### 6. Train authentication models
 
 ```bash
-python csi_auth.py --input data/csi_features.csv
+python train_csi.py
+```
+
+### 7. Authenticate a new capture
+
+```bash
+python auth_csi.py -i data/processed_csi.csv -u giovani
 ```
 
 ---
 
-## Observações
+## Notes
 
-- Utilize o `csi_labeling.py` para rotular corretamente os dados capturados antes de treinar os modelos.
-- Os filtros aplicados aumentam a qualidade dos dados e reduzem ruído, sendo integrados diretamente ao `csi_processing.py`.
+- Captures labeled as `user=empty` are used as the background environment without human presence.
+- The script `auth_csi.py` performs multiple validations and only authenticates if confidence is high enough, considering binary, multiclass, and centroid distance models.
 
 ---
 
-## Baseado em
+## Based on
 
 - [sbrc2024-csi](https://github.com/c2dc/sbrc2024-csi)
 
 ---
 
-## Licença
+## License
 
 MIT
