@@ -1,142 +1,169 @@
+import joblib
 import pandas as pd
 import numpy as np
-import argparse
-import joblib
 import os
-import logging
-from scipy.spatial.distance import euclidean
+import csv
+from datetime import datetime
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 from module.logger import Logger
+import logging
 
-# Setup logging
+# Initialize the logger
 Logger(log_dir="log", log_file="auth_csi.log")
 
-OUTPUT_DIR = "output"
-MODEL_DIR = "model"
 
-SAFE_ZONE_LIMIT = 3.0  # Maximum distance to the user's centroid to consider "authenticated"
-CONFIDENCE_THRESHOLD = 0.6  # Minimum probability threshold to accept authentication
-PRESENCE_THRESHOLD = 0.8  # Minimum probability threshold for human presence
+class PipelineHandler:
+    """Handles loading and training of the pipeline."""
+
+    @staticmethod
+    def load_pipeline(pipeline_path):
+        """Load the trained pipeline."""
+        return joblib.load(pipeline_path)
+
+    @staticmethod
+    def retrain_pipeline(dataset_path, pipeline_path):
+        """Retrain the pipeline with the updated dataset."""
+        df = pd.read_csv(dataset_path)
+        X = df.drop(columns=["user", "position", "environment"])
+        y = df["user"]
+
+        pipeline = Pipeline([
+            ('scaler', StandardScaler()),
+            ('clf', RandomForestClassifier(n_estimators=100, random_state=42))
+        ])
+
+        pipeline.fit(X, y)
+        joblib.dump(pipeline, pipeline_path)
+        logging.info(f"✅ New pipeline saved at: {pipeline_path}")
 
 
-class CSIAuthenticator:
-    def __init__(self, processed_csv, target_user):
-        self.processed_csv = processed_csv
-        self.target_user = target_user
-        self.df_new = None
-        self.X_new_scaled = None
-        self.presences = []
+class DatasetHandler:
+    """Handles dataset operations such as appending new data."""
 
-    def load_data(self):
-        """Load and preprocess the input data."""
-        if not os.path.exists(OUTPUT_DIR):
-            os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-        self.df_new = pd.read_csv(self.processed_csv)
-        selected_cols = pd.read_csv(os.path.join(MODEL_DIR, "selected_features.csv"), header=None)[0].tolist()
-        X_new = self.df_new[selected_cols]
-
-        scaler = joblib.load(os.path.join(MODEL_DIR, "scaler.joblib"))
-        self.X_new_scaled = pd.DataFrame(scaler.transform(X_new), columns=X_new.columns)
-
-    def authenticate_multiclass(self):
-        """Authenticate using the multiclass Random Forest model."""
-        model_rf = joblib.load(os.path.join(MODEL_DIR, "random_forest_model.joblib"))
-        predictions = model_rf.predict(self.X_new_scaled)
-        probas = model_rf.predict_proba(self.X_new_scaled)
-        class_labels = model_rf.classes_
-
-        probas_dict = {label: np.mean(probas[:, i]) for i, label in enumerate(class_labels)}
-        counts = pd.Series(predictions).value_counts().to_dict()
-
-        logging.info("--- Multiclass Model (Random Forest) ---")
-        logging.info(f"Prediction counts: {counts}")
-        for label, val in probas_dict.items():
-            logging.info(f"Average probability for class '{label}': {val:.4f}")
-
-        if self.target_user in class_labels:
-            logging.info(f"Average probability for user '{self.target_user}': {probas_dict[self.target_user]:.4f}")
+    @staticmethod
+    def append_to_dataset(dataset_path, new_data, user):
+        """Add a new capture to the dataset."""
+        new_data = new_data.copy()
+        new_data["user"] = user
+        new_data["position"] = "unknown"
+        new_data["environment"] = "unknown"
+        if os.path.exists(dataset_path):
+            existing = pd.read_csv(dataset_path)
+            combined = pd.concat([existing, new_data], ignore_index=True)
         else:
-            logging.warning(f"User '{self.target_user}' not found in the Random Forest model.")
+            combined = new_data
+        combined.to_csv(dataset_path, index=False)
+        logging.info(f"✅ New capture added to dataset: {dataset_path}")
+        return combined
 
-    def authenticate_binary(self):
-        """Authenticate using binary models (user vs others)."""
-        model_types = ["logreg", "svm", "mlp"]
-        for model_type in model_types:
-            model_path = os.path.join(MODEL_DIR, f"model_{self.target_user}_vs_users_{model_type}.joblib")
-            if not os.path.exists(model_path):
-                continue
-            model = joblib.load(model_path)
-            proba = model.predict_proba(self.X_new_scaled)[:, 1]
-            avg_proba = np.mean(proba)
-            logging.info(f"--- Binary Model: {model_type.upper()} ({self.target_user} vs Other Users) ---")
-            logging.info(f"Average probability for '{self.target_user}': {avg_proba:.4f}")
 
-    def check_human_presence(self):
-        """Check human presence using binary models."""
-        model_types = ["logreg", "svm", "mlp"]
-        logging.info("--- Checking Human Presence (vs. Empty Environment) ---")
-        for model_type in model_types:
-            presence_model_path = os.path.join(MODEL_DIR, f"model_presence_binary_{model_type}.joblib")
-            if not os.path.exists(presence_model_path):
-                continue
-            model = joblib.load(presence_model_path)
-            proba = model.predict_proba(self.X_new_scaled)[:, 1]
-            avg_proba = np.mean(proba)
-            self.presences.append(avg_proba)
-            logging.info(f"[{model_type.upper()}] Average probability of human presence: {avg_proba:.4f}")
+class Authenticator:
+    """Handles the authentication process."""
 
-    def authenticate_user_vs_empty(self):
-        """Authenticate user vs empty environment."""
-        model_types = ["logreg", "svm", "mlp"]
-        logging.info(f"--- Model {self.target_user} vs Empty (All Positions) ---")
-        for model_type in model_types:
-            model_path = os.path.join(MODEL_DIR, f"model_{self.target_user}_vs_empty_all_positions_{model_type}.joblib")
-            scaler_path = os.path.join(MODEL_DIR, f"scaler_{self.target_user}_vs_empty_all_positions.joblib")
-            features_path = os.path.join(MODEL_DIR, f"features_{self.target_user}_vs_empty_all_positions.csv")
-            if not os.path.exists(model_path):
-                continue
-            model = joblib.load(model_path)
-            scaler_user = joblib.load(scaler_path)
-            selected_features = pd.read_csv(features_path, header=None)[0].tolist()
-            X_spec = self.df_new[selected_features]
-            X_spec_scaled = scaler_user.transform(X_spec)
-            proba = model.predict_proba(X_spec_scaled)[:, 1]
-            avg_proba = np.mean(proba)
-            logging.info(f"[{model_type.upper()}] Average probability for '{self.target_user}' (all positions vs empty): {avg_proba:.4f}")
+    @staticmethod
+    def authenticate_with_threshold(input_data, pipeline, threshold):
+        """Authenticate using the pipeline and a threshold."""
+        # Remove non-feature columns
+        feature_data = input_data.drop(columns=["user", "position", "environment"], errors="ignore")
 
-            # Safe zone verification
-            dataset_path = os.path.join("dataset", "dataset.csv")
-            if os.path.exists(dataset_path):
-                df_ref = pd.read_csv(dataset_path)
-                df_user = df_ref[df_ref["user"] == self.target_user]
-                user_centroid = df_user[selected_features].mean().values
-                capture_mean = X_spec.mean().values
-                distance = euclidean(capture_mean, user_centroid)
-                logging.info(f"Average distance to '{self.target_user}' centroid: {distance:.4f}")
+        # Predict probabilities using the pipeline
+        proba = pipeline.predict_proba(feature_data)
+        predicted_class = pipeline.classes_[np.argmax(proba, axis=1)]
+        max_prob = np.max(proba, axis=1)
+        result = ["unknown" if prob < threshold else cls for prob, cls in zip(max_prob, predicted_class)]
+        return result, max_prob
 
-                if avg_proba < CONFIDENCE_THRESHOLD or distance > SAFE_ZONE_LIMIT or max(self.presences) < PRESENCE_THRESHOLD:
-                    logging.warning("⚠️ Pattern rejected. No reliable user presence detected within the safe authentication zone.")
-                else:
-                    logging.info("✅ User successfully authenticated within the safe zone.")
+    @staticmethod
+    def majority_vote(predictions):
+        """Determine the majority vote from predictions."""
+        return pd.Series(predictions).value_counts().idxmax()
 
-    def run(self):
-        """Run the entire authentication pipeline."""
-        self.load_data()
-        self.authenticate_multiclass()
-        self.authenticate_binary()
-        self.check_human_presence()
-        self.authenticate_user_vs_empty()
+
+def log_authentication_result(user, status, avg_proba, result_type, output_path="output/auth_results.csv"):
+    """Log the authentication result and save it to a CSV file."""
+    # Log the result
+    logging.info(f"Result: user={user}, status={status}, accuracy={avg_proba:.2%}, type={result_type}")
+
+    # Ensure the output directory exists
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    # Write the result to the CSV file
+    with open(output_path, mode='a', newline='') as file:
+        writer = csv.writer(file)
+        if file.tell() == 0:  # Add header if the file is empty
+            writer.writerow(["timestamp", "user", "status", "accuracy", "type"])
+        writer.writerow([datetime.now().isoformat(), user, status, f"{avg_proba:.2%}", result_type])
+
+
+def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Interactive CSI Authentication")
+    parser.add_argument("-i", "--input", nargs="?", default="data/processed_csi.csv", help="Path to the capture CSV (default: processed_csi.csv)")
+    parser.add_argument("-u", "--user", required=True, help="Expected user for authentication")
+    parser.add_argument("-p", "--pipeline", default="model/authentication_pipeline.joblib", help="Trained pipeline")
+    parser.add_argument("-t", "--threshold", type=float, default=0.6, help="Acceptance threshold")
+    parser.add_argument("-o", "--output", default="output/auth_results.csv", help="Path to the output results CSV")
+
+    args = parser.parse_args()
+
+    # Fixed path for the labeled dataset
+    dataset_path = "dataset/dataset.csv"
+
+    # Confirm the user name
+    confirm_user = input(f"❓ Is the provided user '{args.user}' correct? (Y/n): ").strip().lower()
+    if confirm_user not in ["", "y"]:
+        logging.info("🚫 Operation canceled by the user.")
+        exit(0)
+
+    # Try to load the pipeline
+    try:
+        pipeline = PipelineHandler.load_pipeline(args.pipeline)
+    except FileNotFoundError:
+        logging.warning(f"⚠️ Pipeline file '{args.pipeline}' not found.")
+        choice = input("❓ Do you want to add this capture to the dataset and train a new pipeline? (Y/n): ").strip().lower()
+        if choice in ["", "y"]:
+            logging.info("➕ Adding capture to the dataset and training a new pipeline...")
+            df = pd.read_csv(args.input)
+            DatasetHandler.append_to_dataset(dataset_path, df, args.user)
+            PipelineHandler.retrain_pipeline(dataset_path, args.pipeline)
+            logging.info("✅ New pipeline trained successfully.")
+            # Reload the pipeline after training
+            pipeline = PipelineHandler.load_pipeline(args.pipeline)
+            log_authentication_result(args.user, "Not authenticated", 0.0, "calibrated", args.output)
+        else:
+            logging.info("🗑️ Capture discarded. Exiting.")
+            exit(0)
+
+    # Load input data
+    df = pd.read_csv(args.input)
+    df["position"] = "unknown"
+    df["environment"] = "unknown"
+
+    # Authenticate
+    logging.info("🔍 Authenticating user...")
+    predictions, probs = Authenticator.authenticate_with_threshold(df, pipeline, args.threshold)
+    avg_proba = np.mean(probs)
+    majority = Authenticator.majority_vote(predictions)
+
+    if majority == args.user and avg_proba >= args.threshold:
+        logging.info("✅ Authentication successful!")
+        log_authentication_result(args.user, "Authenticated", avg_proba, "effective", args.output)
+    else:
+        logging.info("❌ Authentication failed.")
+        choice = input("❓ Do you want to add this capture to the dataset for calibration? (Y/n): ").strip().lower()
+        if choice in ["", "y"]:
+            logging.info("➕ Adding capture to the dataset for calibration...")
+            DatasetHandler.append_to_dataset(dataset_path, df, args.user)
+            PipelineHandler.retrain_pipeline(dataset_path, args.pipeline)
+            logging.info("✅ Pipeline updated successfully.")
+            log_authentication_result(args.user, "Not authenticated", avg_proba, "calibrated", args.output)
+        else:
+            logging.info("🗑️ Capture discarded. Authentication marked as effective.")
+            log_authentication_result(args.user, "Not authenticated", avg_proba, "effective", args.output)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Authenticate CSI for a specific user or environment")
-    parser.add_argument("-i", "--input", default="data/processed_csi.csv", help="Input CSV file")
-    parser.add_argument("-u", "--user", required=True, help="Target user for authentication (do not use 'empty')")
-    args = parser.parse_args()
-
-    if args.user == "empty":
-        logging.error("The label 'empty' represents the empty environment and should not be used as a target user.")
-        exit(1)
-
-    authenticator = CSIAuthenticator(args.input, args.user)
-    authenticator.run()
+    main()

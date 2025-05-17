@@ -11,6 +11,7 @@ from module.logger import Logger
 # Setup logging
 Logger(log_file="capture_csi.log")
 
+SLEEP = 6
 BAUDRATE_UART = 921600
 TIMEOUT_UART = 1
 HEADER = ["type", "id", "mac", "rssi", "rate", "sig_mode", "mcs", "bandwidth",
@@ -60,12 +61,12 @@ class CSICapture:
             if self.reset_attempted:
                 sys.stdout.write("\n")
                 sys.stdout.flush()
-                logging.error(f"Second non-sequential ID detected. Previous ID: {self.previous_id}, Current ID: {current_id}. Terminating capture...")
+                logging.error(f"❌ Second non-sequential ID detected. Previous ID: {self.previous_id}, Current ID: {current_id}. Terminating capture...")
                 raise ValueError("Second non-sequential ID detected.")
             else:
                 sys.stdout.write("\n")
                 sys.stdout.flush()
-                logging.warning(f"Non-sequential ID detected. Previous ID: {self.previous_id}, Current ID: {current_id}. Resetting capture...")
+                logging.warning(f"⚠️ Non-sequential ID detected. Previous ID: {self.previous_id}, Current ID: {current_id}. Resetting capture...")
                 self.reset_attempted = True
                 self.reset_capture()
                 return False
@@ -82,7 +83,7 @@ class CSICapture:
         """Process a single line of CSI data."""
         fields = line.split(",", 24)
         if len(fields) != 25:
-            logging.error("Incomplete CSI data received. Skipping line...")
+            logging.error("❌ Incomplete CSI data received. Skipping line...")
             self.discarded_data_count += 1
             return
 
@@ -105,9 +106,11 @@ class CSICapture:
             csv_writer = csv.writer(csvfile)
             csv_writer.writerow(HEADER)
 
-            logging.info(f"Starting CSI data capture on port {self.serial_port.port}. Saving to: {self.output_file}")
-            logging.info("Capture started. Press Ctrl+C to stop manually.")
-            time.sleep(3)
+            logging.info("⏳ Waiting to initialize...")
+            time.sleep(SLEEP)
+
+            logging.info(f"📡 Starting CSI data capture on port {self.serial_port.port}. Saving to: {self.output_file}")
+            logging.info("▶️ Capture started. Press Ctrl+C to stop manually.")
 
             start_time = time.time()
             end_time = start_time + self.max_time if self.max_time else None
@@ -124,17 +127,17 @@ class CSICapture:
                         break
 
                     elapsed_time = int(time.time() - start_time)
-                    sys.stdout.write(f"\rElapsed time: {elapsed_time}s | Captured data: {self.captured_data_count} | Discarded data: {self.discarded_data_count}")
+                    sys.stdout.write(f"\r⏱️ Elapsed time: {elapsed_time}s | Captured data: {self.captured_data_count} | Discarded data: {self.discarded_data_count}")
                     sys.stdout.flush()
 
             except KeyboardInterrupt:
                 sys.stdout.write("\n")
                 sys.stdout.flush()
-                logging.warning("Capture interrupted by the user.")
+                logging.warning("⏹️ Capture interrupted by the user.")
             except ValueError as e:
                 sys.stdout.write("\n")
                 sys.stdout.flush()
-                logging.error(str(e))
+                logging.error(f"❌ {str(e)}")
                 csvfile.close()
                 os.remove(self.output_file)
                 sys.exit(1)
@@ -143,7 +146,7 @@ class CSICapture:
             sys.stdout.write("\n")  # Ensure the terminal line is cleared
             sys.stdout.flush()
             elapsed_time = int(time.time() - start_time)
-            logging.info(f"Capture completed. Total elapsed time: {elapsed_time}s | Total captured data: {self.captured_data_count}")
+            logging.info(f"✅ Capture completed. Total elapsed time: {elapsed_time}s | Total captured data: {self.captured_data_count}")
 
 
 def main():
@@ -156,12 +159,12 @@ def main():
 
     output_dir = os.path.dirname(args.output)
     if not os.path.exists(output_dir):
-        logging.info(f"Creating output directory: {output_dir}")
+        logging.info(f"📂 Creating output directory: {output_dir}")
         os.makedirs(output_dir, exist_ok=True)
 
     serial_manager = SerialPortManager(args.port, BAUDRATE_UART, TIMEOUT_UART)
     if not serial_manager.check_port():
-        logging.error(f"The port {args.port} is not accessible or no device is connected.")
+        logging.error(f"❌ The port {args.port} is not accessible or no device is connected.")
         sys.exit(1)
 
     capture = CSICapture(serial_manager, args.output, max_lines=args.lines, max_time=args.time)
