@@ -1,0 +1,77 @@
+timestamp,user,status,accuracy,type
+2025-05-15T22:05:27.182985,giovani,Authenticated,77.93%,effective
+2025-05-16T08:43:12.773037,giovani,Authenticated,65.76%,effective
+2025-05-16T08:44:38.993676,empty,Authenticated,81.86%,effective
+2025-05-16T08:46:31.949812,ines,Not authenticated,79.99%,calibrated
+2025-05-16T08:47:27.022217,ines,Authenticated,72.80%,effective
+2025-05-16T08:48:22.877035,ines,Authenticated,67.48%,effective
+2025-05-16T08:50:18.593105,ines,Not authenticated,60.98%,calibrated
+2025-05-16T08:51:22.999310,ines,Authenticated,78.47%,effective
+2025-05-16T08:52:23.056014,ines,Authenticated,85.48%,effective
+2025-05-16T08:53:20.551880,ines,Authenticated,88.41%,effective
+2025-05-16T08:54:19.383097,ines,Authenticated,85.87%,effective
+2025-05-16T08:55:55.877829,giovani,Not authenticated,53.89%,calibrated
+2025-05-16T08:56:44.241684,giovani,Authenticated,86.02%,effective
+2025-05-16T08:57:16.337732,giovani,Authenticated,83.46%,effective
+2025-05-16T08:58:22.582464,giovani,Authenticated,85.82%,effective
+2025-05-16T09:02:16.500016,empty,Not authenticated,73.80%,calibrated
+2025-05-16T09:03:09.067914,empty,Not authenticated,58.72%,calibrated
+2025-05-16T09:04:29.859957,empty,Not authenticated,63.64%,calibrated
+2025-05-16T09:05:23.188261,empty,Authenticated,80.37%,effective
+2025-05-16T09:06:17.583319,empty,Authenticated,85.97%,effective
+2025-05-16T09:07:45.073008,empty,Authenticated,71.75%,effective
+2025-05-16T09:08:44.046954,empty,Authenticated,90.23%,effective
+2025-05-16T09:10:07.020814,giovani,Not authenticated,54.90%,calibrated
+2025-05-16T09:10:37.192330,giovani,Authenticated,67.56%,effective
+2025-05-16T09:11:12.426926,giovani,Not authenticated,51.90%,calibrated
+2025-05-16T09:11:40.116843,giovani,Authenticated,82.00%,effective
+2025-05-16T09:12:07.802355,giovani,Authenticated,76.45%,effective
+2025-05-16T09:12:43.627612,giovani,Authenticated,72.45%,effective
+2025-05-16T09:46:36.403631,giovani,Not authenticated,51.78%,calibrated
+2025-05-16T09:47:15.136759,giovani,Not authenticated,68.19%,calibrated
+2025-05-16T09:47:46.495548,giovani,Authenticated,75.58%,effective
+2025-05-16T09:48:16.456510,giovani,Authenticated,74.65%,effective
+2025-05-16T09:49:06.251623,giovani,Not authenticated,67.81%,calibrated
+2025-05-16T09:49:36.968030,giovani,Authenticated,65.45%,effective
+2025-05-16T09:50:06.067033,giovani,Authenticated,81.92%,effective
+2025-05-16T09:50:33.436624,giovani,Authenticated,90.64%,effective
+2025-05-16T14:09:19.520684,empty,Authenticated,66.73%,effective
+2025-05-16T14:10:48.954357,empty,Authenticated,73.06%,effective
+2025-05-16T14:11:34.489250,giovani,Authenticated,81.23%,effective
+2025-05-16T14:12:15.729119,giovani,Authenticated,84.06%,effective
+2025-05-16T16:14:41.948041,ines,Not authenticated,74.82%,calibrated
+2025-05-16T16:15:49.319989,ines,Not authenticated,68.18%,calibrated
+2025-05-16T16:17:14.596503,ines,Not authenticated,60.45%,calibrated
+2025-05-16T16:18:50.596391,ines,Not authenticated,71.73%,calibrated
+2025-05-16T16:20:27.223823,ines,Not authenticated,60.48%,calibrated
+2025-05-16T16:22:00.576939,ines,Not authenticated,65.56%,calibrated
+2025-05-16T16:23:34.941332,ines,Not authenticated,59.07%,calibrated
+2025-05-16T16:24:47.824797,ines,Authenticated,66.47%,effective
+2025-05-16T16:28:17.425888,giovani,Not authenticated,56.04%,calibrated
+2025-05-16T16:28:46.897785,giovani,Authenticated,84.70%,effective
+2025-05-16T16:29:17.040684,giovani,Authenticated,76.74%,effective
+2025-05-16T16:29:46.448129,giovani,Authenticated,84.24%,effective
+2025-05-16T21:41:07.256906,ines,Not authenticated,59.09%,calibrated
+2025-05-16T21:42:03.845977,ines,Authenticated,68.45%,effective
+2025-05-16T21:43:22.032146,ines,Authenticated,79.43%,effective
+2025-05-16T21:45:01.592775,ines,Authenticated,63.22%,effective
+2025-05-16T21:47:18.432520,giovani,Not authenticated,60.12%,calibrated
+2025-05-16T21:47:49.951038,giovani,Authenticated,81.50%,effective
+2025-05-16T21:48:39.886739,giovani,Authenticated,86.85%,effective
+2025-05-16T21:50:24.453669,giovani,Not authenticated,62.94%,calibrated
+2025-05-16T21:50:51.559870,giovani,Authenticated,87.35%,effective
+2025-05-16T21:51:25.896488,giovani,Authenticated,85.82%,effective
+2025-05-16T21:51:55.822990,giovani,Authenticated,86.74%,effective
+2025-05-16T22:09:10.116193,giovani,Authenticated,78.81%,effective
+2025-05-16T22:10:36.773173,empty,Not authenticated,49.61%,calibrated
+2025-05-16T22:11:28.860778,empty,Authenticated,70.59%,effective
+2025-05-16T22:12:24.402008,empty,Authenticated,73.59%,effective
+2025-05-16T22:14:00.706772,empty,Authenticated,68.73%,effective
+2025-05-16T22:15:11.571594,giovani,Not authenticated,67.59%,calibrated
+2025-05-16T22:16:01.989558,giovani,Not authenticated,60.79%,calibrated
+2025-05-16T22:16:30.502663,giovani,Authenticated,84.20%,effective
+2025-05-16T22:16:58.907631,giovani,Authenticated,82.77%,effective
+2025-05-16T22:17:25.783396,giovani,Authenticated,83.23%,effective
+2025-05-16T22:19:09.387570,empty,Not authenticated,62.20%,calibrated
+2025-05-16T22:20:11.270666,empty,Authenticated,68.33%,effective
+2025-05-16T22:20:55.410360,giovani,Authenticated,68.62%,effective
