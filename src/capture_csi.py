@@ -23,7 +23,7 @@ HEADER = ["type", "id", "mac", "rssi", "rate", "sig_mode", "mcs", "bandwidth",
 class SerialPortManager:
     """Manages the serial port connection."""
 
-    def __init__(self, port, baudrate, timeout):
+    def __init__(self, port, baudrate=BAUDRATE_UART, timeout=TIMEOUT_UART):
         self.port = port
         self.baudrate = baudrate
         self.timeout = timeout
@@ -45,11 +45,14 @@ class SerialPortManager:
 class CSICapture:
     """Handles CSI data capture."""
 
-    def __init__(self, serial_port, output_file, max_lines=None, max_time=None):
+    def __init__(self, serial_port, output_file, max_lines=None, max_time=None, user="unknown", position="unknown", environment="unknown"):
         self.serial_port = serial_port
         self.output_file = output_file
         self.max_lines = max_lines
         self.max_time = max_time
+        self.user = user
+        self.position = position
+        self.environment = environment
         self.captured_data_count = 0
         self.discarded_data_count = 0
         self.previous_id = None
@@ -97,14 +100,14 @@ class CSICapture:
             return
 
         formatted_data = f'[{raw_data}]'
-        csv_writer.writerow(["CSI_DATA"] + fields[1:24] + [formatted_data])
+        csv_writer.writerow(["CSI_DATA"] + fields[1:24] + [formatted_data, self.user, self.position, self.environment])
         self.captured_data_count += 1
 
     def start_capture(self):
         """Start capturing CSI data."""
         with self.serial_port.open_port() as ser, open(self.output_file, mode='w', newline='') as csvfile:
             csv_writer = csv.writer(csvfile)
-            csv_writer.writerow(HEADER)
+            csv_writer.writerow(HEADER + ["user", "position", "environment"])
 
             logging.info("⏳ Waiting to initialize...")
             time.sleep(SLEEP)
@@ -151,10 +154,13 @@ class CSICapture:
 
 def main():
     parser = argparse.ArgumentParser(description="Capture CSI data.")
-    parser.add_argument("-p", "--port", default="/dev/ttyUSB0", help="Serial port (default: /dev/ttyUSB0)")
+    parser.add_argument("--port", default="/dev/ttyUSB0", help="Serial port (default: /dev/ttyUSB0)")
     parser.add_argument("-t", "--time", type=int, default=10, help="Capture duration in seconds (default: 10 seconds)")
     parser.add_argument("-o", "--output", default="data/data_csi.csv", help="Output CSV file name (default: data/data_csi.csv)")
     parser.add_argument("-l", "--lines", type=int, help="Number of valid lines to capture (overrides time if provided)")
+    parser.add_argument("-u", "--user", required=True, help="User associated with the capture")
+    parser.add_argument("-p", "--position", default="unknown", help="Position associated with the capture (default: unknown)")
+    parser.add_argument("-e", "--environment", default="unknown", help="Environment associated with the capture (default: unknown)")
     args = parser.parse_args()
 
     output_dir = os.path.dirname(args.output)
@@ -167,7 +173,7 @@ def main():
         logging.error(f"❌ The port {args.port} is not accessible or no device is connected.")
         sys.exit(1)
 
-    capture = CSICapture(serial_manager, args.output, max_lines=args.lines, max_time=args.time)
+    capture = CSICapture(serial_manager, args.output, max_lines=args.lines, max_time=args.time, user=args.user, position=args.position, environment=args.environment)
     capture.start_capture()
 
 

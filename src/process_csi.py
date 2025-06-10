@@ -3,7 +3,9 @@ import numpy as np
 import json
 import argparse
 import logging
+import uuid 
 from scipy.signal import butter, filtfilt, medfilt
+from scipy.stats import skew, kurtosis
 
 from module.logger import Logger
 
@@ -92,14 +94,26 @@ class CSIProcessor:
                 processed_row[f'amplitude_{i+1}'] = amplitude[i]
                 processed_row[f'phase_{i+1}'] = phase[i]
 
+            # Include additional columns from the raw CSV
+            if 'local_timestamp' in row:
+                processed_row['local_timestamp'] = row['local_timestamp']
+            if 'user' in row:
+                processed_row['user'] = row['user']
+            if 'position' in row:
+                processed_row['position'] = row['position']
+            if 'environment' in row:
+                processed_row['environment'] = row['environment']
+
             processed_rows.append(processed_row)
 
         df_processed = pd.DataFrame(processed_rows)
 
-        # Add new columns with default value "neutral"
-        df_processed['user'] = 'neutral'
-        df_processed['position'] = 'neutral'
-        df_processed['environment'] = 'neutral'
+        # Set weight to 1.0 for all rows
+        df_processed['weight'] = 1.0
+
+        # Generate ONE unique capture_id for ALL rows
+        capture_id = str(uuid.uuid4())
+        df_processed['capture_id'] = capture_id
 
         amplitude_cols = [col for col in df_processed.columns if col.startswith("amplitude_")]
         phase_cols = [col for col in df_processed.columns if col.startswith("phase_")]
@@ -119,6 +133,14 @@ class CSIProcessor:
         df_processed[amplitude_cols] = self.low_pass_filter(df_processed[amplitude_cols].values)
         df_processed[phase_cols] = self.low_pass_filter(df_processed[phase_cols].values)
 
+        # Compute additional statistical features
+        for col_prefix in ['amplitude', 'phase']:
+            cols = [col for col in df_processed.columns if col.startswith(col_prefix)]
+            df_processed[f'{col_prefix}_var'] = np.var(df_processed[cols].values, axis=1)
+            df_processed[f'{col_prefix}_skew'] = skew(df_processed[cols].values, axis=1)
+            df_processed[f'{col_prefix}_kurtosis'] = kurtosis(df_processed[cols].values, axis=1)
+
+        # Save processed data to CSV
         df_processed.to_csv(self.output_csv, index=False)
         logging.info(f"✅ Processed CSI data saved to: {self.output_csv}")
 
