@@ -1,41 +1,40 @@
 # CSI ESP32 Tool Kit
 
-This project is a set of tools for user authentication based on Channel State Information (CSI) data using an **ESP32** device.
+This project provides a complete toolset for user authentication based on Channel State Information (CSI) using an **ESP32** device.
 
-## Description
+## 🧠 Overview
 
-The project enables the capture, processing, labeling, model training, and authentication of users based on CSI signals. It was developed from the repository [sbrc2024-csi](https://github.com/c2dc/sbrc2024-csi), adapted for use with ESP32 authentication.
-
----
-
-### 🧠 **How It Works**
-
-The ESP32 collects CSI data while network traffic (e.g., ping) occurs and a user is either present or not in the environment. These data are processed, labeled, and used to train machine learning authentication models.
+The system enables CSI data capture, processing, training, and user authentication using machine learning models. It was adapted from the original [sbrc2024-csi](https://github.com/c2dc/sbrc2024-csi) repository for real-time use with the ESP32 and UART-based communication.
 
 <p align="center">
-  <img src="docs/architecture_csi_diagram_en.png" width="70%" alt="How CSI works with ESP32">
+  <img src="docs/architecture_csi_diagram_en.png" width="70%" alt="CSI ESP32 Architecture Diagram">
 </p>
 
 ---
 
-## Requirements
+## ⚙️ Requirements
 
 - Python 3.10+
-- Dependencies listed in `requirements.txt`
+- Packages listed in `requirements.txt`
 - ESP-IDF environment configured
-- CSI firmware running on ESP32 (via ESP-CSI)
+- ESP32 running the CSI firmware (via ESP-CSI)
 
 ---
 
-## File Structure
+## 📁 File Structure
 
-- `capture_csi.py`: Captures CSI data from ESP32 via UART serial port and saves it as CSV.
-- `process_csi.py`: Processes raw CSV, applying normalization and low-pass filters to amplitude and phase signals.
-- `auth_csi.py`: Authenticates a new processed capture and trains machine learning using Random Forest model.
+| File                   | Description                                                                 |
+|------------------------|-----------------------------------------------------------------------------|
+| `capture_csi.py`       | Captures CSI data via UART from ESP32 and saves it to CSV                  |
+| `process_csi.py`       | Processes raw CSI data: normalizes, filters and extracts statistical features |
+| `auth_csi.py`          | Authenticates the user and manages dataset updates and model training       |
+| `pipeline_csi.py`      | Orchestrates the entire CSI pipeline: capture → process → authenticate      |
+| `model_manager.py`     | Trains and saves machine learning models (binary and one-vs-all classifiers)|
+| `validation_manager.py`| Generates PCA, KNN, and distance-based visualizations for authentication     |
 
 ---
 
-## How to Use
+## 🚀 How to Use
 
 ### 1. Install dependencies
 
@@ -43,10 +42,10 @@ The ESP32 collects CSI data while network traffic (e.g., ping) occurs and a user
 pip install -r requirements.txt
 ```
 
-### 2. Capture CSI data
+### 2. Capture CSI data from the ESP32
 
 ```bash
-python capture_csi.py -p /dev/ttyUSB0 -t 60 -o data/data_csi.csv
+python capture_csi.py --port /dev/ttyUSB0 -t 60 -u giovani -o data/data_csi.csv
 ```
 
 ### 3. Process the captured data
@@ -55,20 +54,48 @@ python capture_csi.py -p /dev/ttyUSB0 -t 60 -o data/data_csi.csv
 python process_csi.py -i data/data_csi.csv -o data/processed_csi.csv
 ```
 
-### 4. Authenticate a new capture and train Random Forest model
+### 4. Authenticate the capture using trained models
 
 ```bash
 python auth_csi.py -i data/processed_csi.csv -u giovani
 ```
 
+### 5. (Optional) Run the entire pipeline in one step
+
+```bash
+python pipeline_csi.py -t 60 -u giovani
+```
+
 ---
 
-## Based on
+## 🧠 Train All Models
+
+To retrain all classification models using the current dataset:
+
+```bash
+python model_manager.py -d dataset/dataset.csv -m model
+```
+
+---
+
+## 📊 Generate Validation Visualizations
+
+Run PCA, distance histograms, and simulated confusion matrix using KNN:
+
+```bash
+python validation_manager.py -d dataset/dataset.csv -i data/processed_csi.csv -u giovani
+```
+
+This step is useful for assessing the separability of the new capture.
+
+---
+
+## 📌 Based On
 
 - [sbrc2024-csi](https://github.com/c2dc/sbrc2024-csi)
 
 ---
 
-## License
+## 📝 License
 
 MIT
