@@ -5,12 +5,30 @@ import argparse
 import time
 import logging
 import serial
+import uuid
 
 from module.logger import Logger
+
+"""
+CSI Capture Script
+
+This script captures Channel State Information (CSI) data from an ESP32 device connected via UART.
+
+Key functionalities:
+- Validates captured data integrity by ensuring sequential IDs.
+- Logs raw data received directly from UART into a CSV file.
+- Includes metadata such as user, position, and environment for each capture.
+- Controls capture duration or maximum number of lines captured.
+
+The output is a CSV file containing raw CSI data, ready for subsequent processing.
+"""
 
 # Setup logging
 Logger(log_file="capture_csi.log")
 
+SAMPLE_FILE = "data/sample_csi.csv"
+LEN_DATA = 384
+INCREMENT = 1
 SLEEP = 6
 BAUDRATE_UART = 921600
 TIMEOUT_UART = 1
@@ -57,32 +75,12 @@ class CSICapture:
         self.discarded_data_count = 0
         self.previous_id = None
         self.reset_attempted = False
+        self.first_id = None
+        self.start_time = None
+        self.end_time = None
+        self.capture_id = str(uuid.uuid4()) # Generate ONE unique capture_id for ALL rows
 
-    def validate_id(self, current_id):
-        """Validate sequential ID."""
-        if self.previous_id is not None and current_id != self.previous_id + 2:
-            if self.reset_attempted:
-                sys.stdout.write("\n")
-                sys.stdout.flush()
-                logging.error(f"❌ Second non-sequential ID detected. Previous ID: {self.previous_id}, Current ID: {current_id}. Terminating capture...")
-                raise ValueError("Second non-sequential ID detected.")
-            else:
-                sys.stdout.write("\n")
-                sys.stdout.flush()
-                logging.warning(f"⚠️ Non-sequential ID detected. Previous ID: {self.previous_id}, Current ID: {current_id}. Resetting capture...")
-                self.reset_attempted = True
-                self.reset_capture()
-                return False
-        self.previous_id = current_id
-        return True
-
-    def reset_capture(self):
-        """Reset the capture process."""
-        self.captured_data_count = 0
-        self.discarded_data_count = 0
-        self.previous_id = None
-
-    def process_line(self, line, csv_writer):
+    def process_line(self, line):
         """Process a single line of CSI data."""
         fields = line.split(",", 24)
         if len(fields) != 25:
@@ -91,45 +89,67 @@ class CSICapture:
             return
 
         current_id = int(fields[1])
-        if not self.validate_id(current_id):
-            return
+
+        if self.first_id is None:
+            self.first_id = current_id
+        elif current_id != self.previous_id + INCREMENT:
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+            logging.warning(f"⚠️  Non-sequential ID detected at ID {current_id}. Discarding previous samples and restarting capture window.")
+            self.sample_file.seek(0)
+            self.sample_file.truncate()
+            self.sample_writer.writerow(HEADER + ["user", "position", "environment", "capture_id"])
+            self.captured_data_count = 0
+            self.start_time = time.time()
+            self.end_time = self.start_time + self.max_time if self.max_time else None
+
+        self.previous_id = current_id
 
         raw_data = fields[24].strip('[]"').replace(' ', '')
-        if len(raw_data.split(",")) != 128:
+        if len(raw_data.split(",")) != LEN_DATA:
             self.discarded_data_count += 1
             return
 
         formatted_data = f'[{raw_data}]'
-        csv_writer.writerow(["CSI_DATA"] + fields[1:24] + [formatted_data, self.user, self.position, self.environment])
+        self.sample_writer.writerow(["CSI_DATA"] + fields[1:24] + [formatted_data, self.user, self.position, self.environment, self.capture_id])        
         self.captured_data_count += 1
 
     def start_capture(self):
-        """Start capturing CSI data."""
-        with self.serial_port.open_port() as ser, open(self.output_file, mode='w', newline='') as csvfile:
-            csv_writer = csv.writer(csvfile)
-            csv_writer.writerow(HEADER + ["user", "position", "environment"])
 
+        cumulative_path = self.output_file
+        is_new_file = not os.path.exists(cumulative_path)
+
+        self.sample_file = open(SAMPLE_FILE, mode='w', newline='')
+        self.sample_writer = csv.writer(self.sample_file)
+        self.sample_writer.writerow(HEADER + ["user", "position", "environment", "capture_id"])
+
+        self.cumulative_file = open(cumulative_path, mode='a', newline='')
+        self.cumulative_writer = csv.writer(self.cumulative_file)
+        if is_new_file:
+            self.cumulative_writer.writerow(HEADER + ["user", "position", "environment", "capture_id"])
+        """Start capturing CSI data."""
+        with self.serial_port.open_port() as ser:
             logging.info("⏳ Waiting to initialize...")
             time.sleep(SLEEP)
 
             logging.info(f"📡 Starting CSI data capture on port {self.serial_port.port}. Saving to: {self.output_file}")
-            logging.info("▶️ Capture started. Press Ctrl+C to stop manually.")
+            logging.info("▶️  Capture started. Press Ctrl+C to stop manually.")
 
-            start_time = time.time()
-            end_time = start_time + self.max_time if self.max_time else None
+            self.start_time = time.time()
+            self.end_time = self.start_time + self.max_time if self.max_time else None
 
             try:
                 while True:
                     line = ser.readline().decode('utf-8').strip()
                     if line.startswith("CSI_DATA"):
-                        self.process_line(line, csv_writer)
+                        self.process_line(line)
 
                     if self.max_lines and self.captured_data_count >= self.max_lines:
                         break
-                    if not self.max_lines and end_time and time.time() >= end_time:
+                    if not self.max_lines and self.end_time and time.time() >= self.end_time:
                         break
 
-                    elapsed_time = int(time.time() - start_time)
+                    elapsed_time = int(time.time() - self.start_time)
                     sys.stdout.write(f"\r⏱️ Elapsed time: {elapsed_time}s | Captured data: {self.captured_data_count} | Discarded data: {self.discarded_data_count}")
                     sys.stdout.flush()
 
@@ -137,19 +157,47 @@ class CSICapture:
                 sys.stdout.write("\n")
                 sys.stdout.flush()
                 logging.warning("⏹️ Capture interrupted by the user.")
+                # Discard current capture: do not write anything to cumulative file
+                self.sample_file.close()
+                self.cumulative_file.close()
+                # Optionally, remove the sample file to avoid confusion
+                if os.path.exists(SAMPLE_FILE):
+                    os.remove(SAMPLE_FILE)
+                return
             except ValueError as e:
                 sys.stdout.write("\n")
                 sys.stdout.flush()
                 logging.error(f"❌ {str(e)}")
-                csvfile.close()
-                os.remove(self.output_file)
+                # Do not remove the cumulative file!
+                self.sample_file.close()
+                self.cumulative_file.close()
+                if os.path.exists(SAMPLE_FILE):
+                    os.remove(SAMPLE_FILE)
                 sys.exit(1)
 
             # Log the summary after the loop ends
             sys.stdout.write("\n")  # Ensure the terminal line is cleared
             sys.stdout.flush()
-            elapsed_time = int(time.time() - start_time)
+            elapsed_time = int(time.time() - self.start_time)
+            if self.captured_data_count > 0:
+                self.sample_file.close()
+                # Ask the operator if they want to include the capture in the cumulative file
+                try:
+                    user_input = input("\nDo you want to include this capture in the cumulative file (data/data_csi.csv)? [Y/n]: ").strip().lower()
+                except EOFError:
+                    user_input = ''  # Default to include if input is not possible
+                if user_input in ('', 'y', 'yes'):
+                    with open("data/sample_csi.csv", "r", newline="") as sample:
+                        reader = csv.reader(sample)
+                        next(reader)
+                        for row in reader:
+                            self.cumulative_writer.writerow(row)
+                        logging.info("📥 Current capture data added to the cumulative file.")
+                else:
+                    logging.info("ℹ️ Capture NOT added to the cumulative file. Data is available in data/sample_csi.csv.")
             logging.info(f"✅ Capture completed. Total elapsed time: {elapsed_time}s | Total captured data: {self.captured_data_count}")
+            self.sample_file.close()
+            self.cumulative_file.close()
 
 
 def main():
@@ -179,3 +227,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
